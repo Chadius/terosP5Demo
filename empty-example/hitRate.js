@@ -10,10 +10,10 @@ class HitRateCalculator {
     constructor(attackBonus) {
         this.attackBonus = attackBonus;
         this.degreeCount = {};
-        this.degreeRolls = {};
         this.degreeScoreSum = {};
         this.degreeScoreMultiplier = {};
         this.score = 0;
+        this.degreeByAttackDefendRoll = {};
         this.reset();
     }
 
@@ -23,12 +23,6 @@ class HitRateCalculator {
             2 : 0,
             1 : 0,
             0: 0,
-        };
-        this.degreeRolls = {
-            3 : {},
-            2 : {},
-            1 : {},
-            0: {},
         };
         this.degreeScoreSum = {
             3 : 0,
@@ -44,6 +38,57 @@ class HitRateCalculator {
         };
 
         this.score = 0;
+
+        this.degreeByAttackDefendRoll = {
+            1: {
+                1: undefined,
+                2: undefined,
+                3: undefined,
+                4: undefined,
+                5: undefined,
+                6: undefined,
+            },
+            2: {
+                1: undefined,
+                2: undefined,
+                3: undefined,
+                4: undefined,
+                5: undefined,
+                6: undefined,
+            },
+            3: {
+                1: undefined,
+                2: undefined,
+                3: undefined,
+                4: undefined,
+                5: undefined,
+                6: undefined,
+            },
+            4: {
+                1: undefined,
+                2: undefined,
+                3: undefined,
+                4: undefined,
+                5: undefined,
+                6: undefined,
+            },
+            5: {
+                1: undefined,
+                2: undefined,
+                3: undefined,
+                4: undefined,
+                5: undefined,
+                6: undefined,
+            },
+            6: {
+                1: undefined,
+                2: undefined,
+                3: undefined,
+                4: undefined,
+                5: undefined,
+                6: undefined,
+            },
+        };
     }
 
     calculateHitRate() {
@@ -75,12 +120,7 @@ class HitRateCalculator {
                 this.degreeScoreSum[degreeOfSuccess] += this.degreeScoreMultiplier[degreeOfSuccess];
                 this.degreeCount[degreeOfSuccess] += 1;
 
-                const roll = attackRoll + defenseRoll;
-                if (this.degreeRolls[degreeOfSuccess][roll]) {
-                    this.degreeRolls[degreeOfSuccess][roll] += 1;
-                } else {
-                    this.degreeRolls[degreeOfSuccess][roll] = 1;
-                }
+                this.degreeByAttackDefendRoll[attackRoll][defenseRoll] = degreeOfSuccess;
             }
         }
 
@@ -91,18 +131,54 @@ class HitRateCalculator {
         this.score = sum;
     }
 
-    describeRolls(degree) {
-        const countsPerRoll = Object.keys(this.degreeRolls[degree]).map((score) => {
-            return score + "(" + this.degreeRolls[degree][score]+ ")";
+    getRollsByDegree() {
+        const rollsByDegree = {
+            0: [],
+            1: [],
+            2: [],
+            3: [],
+        };
+
+        for (let attackRoll = 1; attackRoll <= 6; attackRoll++) {
+            for (let defenseRoll = 1; defenseRoll <= 6; defenseRoll++) {
+                const degreeOfSuccess = this.degreeByAttackDefendRoll[attackRoll][defenseRoll];
+                rollsByDegree[degreeOfSuccess].push([attackRoll, defenseRoll]);
+            }
+        }
+
+        return rollsByDegree;
+    }
+
+    printRollsByDegree() {
+        const rollsByDegree = this.getRollsByDegree();
+        const printoutByDegree = {
+            0: undefined,
+            1: undefined,
+            2: undefined,
+            3: undefined,
+        };
+
+        Object.keys(rollsByDegree).forEach(degree => {
+            const rolls = rollsByDegree[degree];
+            if (rolls.length == 0) {
+                printoutByDegree[degree] = "None";
+                return;
+            }
+            const printRolls = rolls.map(pair => {
+                return pair[0] + "," + pair[1];
+            })
+            printoutByDegree[degree] = printRolls.join(" ");
         })
 
-        return countsPerRoll.join(", ");
+        return printoutByDegree;
     }
 }
 
-const tn = 7;
 let hitRatesByAttackBonus;
 let downloadButton;
+let attackBonusUpButton;
+let attackBonusDownButton;
+let attackBonusToDraw = 0;
 
 function setup() {
     createCanvas(640, 800);
@@ -113,18 +189,28 @@ function setup() {
         hitRatesByAttackBonus[i].calculateHitRate();
     }
 
+    attackBonusToDraw = 0;
+
     downloadButton = createButton('download TSV');
     downloadButton.position(0, 800);
     downloadButton.mousePressed(downloadCSV);
+
+    attackBonusDownButton = createButton('-1');
+    attackBonusDownButton.position(100, 30);
+    attackBonusDownButton.mousePressed(decreaseAttackBonus);
+
+    attackBonusUpButton = createButton('+1');
+    attackBonusUpButton.position(150, 30);
+    attackBonusUpButton.mousePressed(increaseAttackBonus);
 }
 
 function drawDetailedHitRate(calc) {
     push();
     fill(32);
     text("Attack Bonus: " + calc.attackBonus, 20, 20);
-    text("Score: ", 20, 40);
-    text(calc.score, 100, 40);
-    text("(max is 144)", 150, 40);
+    text("Score: ", 20, 60);
+    text(calc.score, 100, 60);
+    text("(max is 144)", 150, 60);
 
     text("Crit Success: ", 20, 80);
     text("Success: ", 20, 100);
@@ -139,10 +225,15 @@ function drawDetailedHitRate(calc) {
     text("(" + calc.degreeCount[degreeFailure] * 1 + " points)", 150, 120);
     text("(" + calc.degreeCount[degreeCriticalFailure] * 0 + " points)", 150, 140);
 
-    text(calc.describeRolls(degreeCriticalSuccess), 220, 80);
-    text(calc.describeRolls(degreeSuccess), 220, 100);
-    text(calc.describeRolls(degreeFailure), 220, 120);
-    text(calc.describeRolls(degreeCriticalFailure), 220, 140);
+    const rollPrintout = calc.printRollsByDegree();
+    [
+        degreeCriticalSuccess,
+        degreeSuccess,
+        degreeFailure,
+        degreeCriticalFailure
+    ].forEach((degree, index) => {
+        text(rollPrintout[degree], 220, 80 + (index * 20))
+    });
     pop();
 }
 
@@ -151,16 +242,16 @@ function drawHitRateTable() {
     text("less than -11 gives the same score as -11", 40, 210);
     text("more than 11 gives the same score as 11", 40, 230);
 
-    text("Target Number | Score ", 20, 250);
+    text("Attack bonus | Score ", 20, 250);
 
     compareStringsAsNumbers = (a, b) => {
         return parseInt(a) - parseInt(b);
     }
 
-    Object.keys(hitRatesByAttackBonus).sort(compareStringsAsNumbers).forEach((targetNumber, index) => {
-        const score = hitRatesByAttackBonus[targetNumber].score;
+    Object.keys(hitRatesByAttackBonus).sort(compareStringsAsNumbers).forEach((attackBonus, index) => {
+        const score = hitRatesByAttackBonus[attackBonus].score;
         fill(32);
-        text(targetNumber, 20, 250 + 20 * (1 + index));
+        text(attackBonus, 20, 250 + 20 * (1 + index));
         text(score, 100, 250 + 20 * (1 + index));
     })
     pop();
@@ -169,41 +260,65 @@ function drawHitRateTable() {
 function draw() {
     background(220);
 
-    drawDetailedHitRate(hitRatesByAttackBonus[hitRateMinBonus]);
+    drawDetailedHitRate(hitRatesByAttackBonus[attackBonusToDraw]);
     drawHitRateTable();
+}
+
+function increaseAttackBonus() {
+    attackBonusToDraw += 1;
+    if (attackBonusToDraw > hitRateMaxBonus) {
+        attackBonusToDraw = hitRateMaxBonus;
+    }
+}
+
+function decreaseAttackBonus() {
+    attackBonusToDraw -= 1;
+    if (attackBonusToDraw < hitRateMinBonus) {
+        attackBonusToDraw = hitRateMinBonus;
+    }
 }
 
 function downloadCSV() {
     let rows = [
         [
-            "Target Number",
+            "Attack bonus",
             "Score",
             "Critical Successes",
-            "rolls",
             "Successes",
-            "rolls",
             "Failures",
-            "rolls",
             "Critical Failures",
-            "rolls",
         ]
     ];
+
+    for (let attackRoll = 1; attackRoll <= 6; attackRoll++) {
+        for (let defenseRoll = 1; defenseRoll <= 6; defenseRoll++) {
+            rows[0].push(attackRoll + "," + defenseRoll);
+        }
+    }
 
     for(let i = hitRateMinBonus; i <= hitRateMaxBonus; i++) {
         const hitRate = hitRatesByAttackBonus[i];
 
-        rows.push([
+        const newRow = [
             i,
             hitRate.score,
             hitRate.degreeCount[degreeCriticalSuccess],
-            hitRate.describeRolls(degreeCriticalSuccess),
             hitRate.degreeCount[degreeSuccess],
-            hitRate.describeRolls(degreeSuccess),
             hitRate.degreeCount[degreeFailure],
-            hitRate.describeRolls(degreeFailure),
             hitRate.degreeCount[degreeCriticalFailure],
-            hitRate.describeRolls(degreeCriticalFailure),
-        ]);
+        ];
+
+        for (let attackRoll = 1; attackRoll <= 6; attackRoll++) {
+            for (let defenseRoll = 1; defenseRoll <= 6; defenseRoll++) {
+                // Add the score earned with such a roll
+                const degreeOfSuccess = hitRate.degreeByAttackDefendRoll[attackRoll][defenseRoll];
+                newRow.push(
+                    hitRate.degreeScoreMultiplier[degreeOfSuccess]
+                );
+            }
+        }
+
+        rows.push(newRow);
     }
 
     let tsv = rows.map((column) => {
